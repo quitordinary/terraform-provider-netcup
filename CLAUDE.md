@@ -32,6 +32,11 @@ make check    # tidy-diff, vet, race tests, golangci-lint, govulncheck
 make build    # bin/netcupctl
 ```
 
+- Checks run on the official toolchain: `go.mod`'s `go` line is the current patch
+  release, so `GOTOOLCHAIN=auto` fetches it. A distribution build such as Arch's
+  `go1.27.3-X:nodwarf5` makes govulncheck miss standard-library vulnerabilities:
+  on 2026-11-11 it reported none, while CI's official 1.27.3 reported GO-2026-6859.
+  A toolchain security release is taken at once; the 7-day rule is for dependencies.
 - Commit straight to `main` (one operator, ADR-0056); `main` cannot be force-pushed or
   deleted. Release tags `v*` are created only by organisation admins.
 - The SCP returns `null` for some fields the spec marks required (`rdns`,
