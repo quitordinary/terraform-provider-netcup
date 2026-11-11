@@ -9,8 +9,9 @@ platform; why it exists and how it is installed is
 
 **Status:** before the spike
 ([Infrastructure#68](https://github.com/quitordinary/Infrastructure/issues/68)).
-Only `netcupctl login`, `token check`, `token renew` and `spec` exist; there is no
-provider yet.
+`netcupctl login`, `token check`, `token renew` and `spec` exist; the provider has a
+configuration and no resources yet. `scripts/oci-package.sh` packages it as an OpenTofu
+OCI provider (reproducible: the same commit gives the same zips).
 
 ## netcupctl
 

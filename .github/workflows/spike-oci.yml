@@ -1,0 +1,49 @@
+# Spike (Infrastructure#68): publish an OpenTofu OCI provider index to GHCR so that
+# `tofu init` can be tried against it without a login. Temporary: the tag-triggered,
+# attested release in Infrastructure#73 replaces it, reusing scripts/oci-package.sh.
+name: spike-oci
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Pre-release version to publish (SemVer, no leading v)
+        required: true
+        default: 0.0.0-spike.1
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The workflow's own short-lived token publishes; no personal token (rule 7).
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GOFLAGS: -mod=readonly
+      GOTOOLCHAIN: local
+      VERSION: ${{ inputs.version }}
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: Package
+        run: scripts/oci-package.sh "$VERSION" "$RUNNER_TEMP/layout"
+      - name: Push to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bin/oras login ghcr.io --username "$GITHUB_ACTOR" --password-stdin <<<"$GITHUB_TOKEN"
+          bin/oras cp --from-oci-layout "$RUNNER_TEMP/layout:$VERSION" "$IMAGE:$VERSION"
+          bin/oras logout ghcr.io
+          echo "Published $IMAGE:$VERSION" >>"$GITHUB_STEP_SUMMARY"
