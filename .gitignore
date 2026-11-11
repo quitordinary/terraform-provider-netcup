@@ -1,0 +1,4 @@
+/bin/
+/dist/
+# A fetched OpenAPI document stays local until #70 decides how a snapshot is kept.
+/openapi.json
