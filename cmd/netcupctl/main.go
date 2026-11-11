@@ -36,7 +36,8 @@ const usage = `netcupctl: netcup SCP login and operations (ADR-0066)
 
 Usage:
   netcupctl login                     device-code login; prints the refresh token to stdout (never to a terminal)
-  netcupctl token check [--reuse]     exchange the refresh token and report lifetimes and rotation, never the token
+  netcupctl token check [--reuse]     exchange the refresh token and report lifetimes, never the token
+  netcupctl token renew               exchange the refresh token; print the newest one to stdout (never to a terminal)
   netcupctl spec fetch [-o FILE]      download the OpenAPI document (default openapi.json)
   netcupctl spec paths FILE           list "METHOD path" for every operation in an OpenAPI document
   netcupctl version
@@ -65,6 +66,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	switch strings.Join(firstN(args, 2), " ") {
 	case "token check":
 		return tokenCheck(ctx, args[2:], stdout)
+	case "token renew":
+		return tokenRenew(ctx, args[2:], stdout, stderr)
 	case "spec fetch":
 		return specFetch(ctx, args[2:], stderr)
 	case "spec paths":
@@ -131,10 +134,11 @@ func tokenCheck(ctx context.Context, args []string, stdout io.Writer) error {
 	fmt.Fprintf(stdout, "access token lifetime:   %s\n", time.Until(first.Expiry).Round(time.Second))
 	fmt.Fprintf(stdout, "refresh_expires_in:      %v (Keycloak reports 0 when the session has no maximum)\n",
 		first.Extra("refresh_expires_in"))
-	rotated := first.RefreshToken != "" && first.RefreshToken != original
-	fmt.Fprintf(stdout, "refresh token rotated:   %t\n", rotated)
-	if rotated {
-		fmt.Fprintln(stdout, "new refresh token:")
+	// A new token says nothing about the old one: only presenting the old one
+	// again (--reuse, or a second run) shows whether the realm revoked it.
+	issued := first.RefreshToken != "" && first.RefreshToken != original
+	fmt.Fprintf(stdout, "new refresh token:       %t\n", issued)
+	if issued {
 		printClaims(stdout, first.RefreshToken)
 	}
 
@@ -147,6 +151,34 @@ func tokenCheck(ctx context.Context, args []string, stdout io.Writer) error {
 		fmt.Fprintf(stdout, "  realm answered: %v\n", err)
 	}
 	return nil
+}
+
+// tokenRenew exchanges the stored refresh token and prints the newest one, so the
+// caller can store it: each token expires 30 days after its own issue, and only a
+// stored newer token keeps the login alive (ADR-0066, spike result).
+func tokenRenew(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("token renew", flag.ContinueOnError)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if isTerminal(stdout) {
+		return errors.New("stdout is a terminal; pipe the token into its store instead")
+	}
+	current, err := refreshTokenFromEnv()
+	if err != nil {
+		return err
+	}
+	token, err := scp.Refresh(ctx, baseURL(), httpClient(), current)
+	if err != nil {
+		return err
+	}
+	newest := token.RefreshToken
+	if newest == "" {
+		newest = current // the realm kept the token; it is still the newest
+	}
+	fmt.Fprintf(stderr, "Renewed; the token written to stdout expires %s.\n", tokenExpiry(newest))
+	_, err = fmt.Fprintln(stdout, newest)
+	return err
 }
 
 func specFetch(ctx context.Context, args []string, stderr io.Writer) error {
@@ -249,6 +281,25 @@ func printClaims(w io.Writer, token string) {
 	fmt.Fprintf(w, "  issued: %s\n", unixTime(claims.Iat))
 	fmt.Fprintf(w, "  exp:    %s\n", unixTime(claims.Exp))
 	fmt.Fprintf(w, "  scope:  %s\n", claims.Scope)
+}
+
+// tokenExpiry returns a JWT's exp claim as text, or "unknown".
+func tokenExpiry(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "unknown"
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "unknown"
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if json.Unmarshal(payload, &claims) != nil || claims.Exp == 0 {
+		return "unknown"
+	}
+	return unixTime(claims.Exp)
 }
 
 func unixTime(seconds int64) string {

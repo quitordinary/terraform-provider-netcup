@@ -46,10 +46,42 @@ func TestTokenCheckNeverPrintsTokens(t *testing.T) {
 			t.Errorf("output leaks %q:\n%s", secret, out)
 		}
 	}
-	for _, want := range []string{"refresh token rotated:   true", "original token reusable: false"} {
+	for _, want := range []string{"new refresh token:       true", "original token reusable: false"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestTokenRenewPrintsOnlyTheNewestToken(t *testing.T) {
+	realm, srv := scptest.New(t)
+	realm.Rotate = true
+	t.Setenv(envBaseURL, srv.URL)
+	t.Setenv(envRefreshToken, "refresh-0")
+
+	var stdout, stderr bytes.Buffer
+	if err := run(context.Background(), []string{"token", "renew"}, &stdout, &stderr); err != nil {
+		t.Fatalf("token renew: %v", err)
+	}
+	if got := stdout.String(); got != "refresh-1\n" {
+		t.Errorf("stdout = %q, want exactly the newest token", got)
+	}
+	if strings.Contains(stderr.String(), "refresh-") {
+		t.Errorf("stderr leaks a token: %q", stderr.String())
+	}
+}
+
+func TestTokenRenewKeepsATokenTheRealmDidNotReplace(t *testing.T) {
+	_, srv := scptest.New(t) // no rotation: the realm answers with the same token
+	t.Setenv(envBaseURL, srv.URL)
+	t.Setenv(envRefreshToken, "refresh-0")
+
+	var stdout bytes.Buffer
+	if err := run(context.Background(), []string{"token", "renew"}, &stdout, &bytes.Buffer{}); err != nil {
+		t.Fatalf("token renew: %v", err)
+	}
+	if got := stdout.String(); got != "refresh-0\n" {
+		t.Errorf("stdout = %q", got)
 	}
 }
 
