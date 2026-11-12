@@ -1,8 +1,8 @@
 # terraform-provider-netcup
 
 The OpenTofu provider for netcup's SCP and the `netcupctl` CLI, one Go module.
-Why and how it is used: [ADR-0066](https://github.com/quitordinary/Infrastructure/blob/main/decisions/0066-own-netcup-provider.md).
-The platform's rules live in `quitordinary/Infrastructure` (`PLATFORM.md`); the work is
+Why and how it is used: [ADR-0066](https://github.com/quitordinary/infrastructure/blob/main/decisions/0066-own-netcup-provider.md).
+The platform's rules live in `quitordinary/infrastructure` (`PLATFORM.md`); the work is
 issues #67–#74 there, not in this repository.
 
 This repository is **public**. Everything in it, history included, is world-readable.

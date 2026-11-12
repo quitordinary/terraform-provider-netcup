@@ -5,10 +5,10 @@ attachment, rDNS, SSH keys), and `netcupctl` for what is not state (the login, I
 attach, rescue, power). Both talk to netcup's [SCP REST
 API](https://www.servercontrolpanel.de/scp-core/api/v1). Built for quitordinary's own
 platform; why it exists and how it is installed is
-[ADR-0066](https://github.com/quitordinary/Infrastructure/blob/main/decisions/0066-own-netcup-provider.md).
+[ADR-0066](https://github.com/quitordinary/infrastructure/blob/main/decisions/0066-own-netcup-provider.md).
 
 **Status:** before the spike
-([Infrastructure#68](https://github.com/quitordinary/Infrastructure/issues/68)).
+([Infrastructure#68](https://github.com/quitordinary/infrastructure/issues/68)).
 `netcupctl login`, `token check`, `token renew` and `spec` exist; the provider has a
 configuration and no resources yet. `scripts/oci-package.sh` packages it as an OpenTofu
 OCI provider (reproducible: the same commit gives the same zips).
